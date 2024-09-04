@@ -18,8 +18,10 @@ typedef struct Point_
     int clusterID;  // clustered ID
 }Point;
 
-class DBSCAN {
-public:    
+class DBSCAN : public rclcpp::Node
+{
+public:
+  PointCloudClusterNode();
     DBSCAN(unsigned int minPts, float eps, vector<Point> points){
         m_minPoints = minPts;
         m_epsilon = eps;
@@ -27,23 +29,25 @@ public:
         m_pointSize = points.size();
     }
     ~DBSCAN(){}
-
-    int run();
-    vector<int> calculateCluster(Point point);
-    int expandCluster(Point point, int clusterID);
-    inline double calculateDistance(const Point& pointCore, const Point& pointTarget);
-
-    int getTotalPointSize() {return m_pointSize;}
-    int getMinimumClusterSize() {return m_minPoints;}
-    int getEpsilonSize() {return m_epsilon;}
-    
-public:
-    vector<Point> m_points;
-    
 private:    
     unsigned int m_pointSize;
     unsigned int m_minPoints;
     float m_epsilon;
+    int run();
+    vector<int> calculateCluster(Point point);
+    int expandCluster(Point point, int clusterID);
+    inline double calculateDistance(const Point& pointCore, const Point& pointTarget);
+    int getTotalPointSize() {return m_pointSize;}
+    int getMinimumClusterSize() {return m_minPoints;}
+    int getEpsilonSize() {return m_epsilon;}
+    vector<Point> m_points;
+    //function
+    void pointCloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr msg);
+    void publishClusteredPointCloud(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& clustered_cloud);
+
+    rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr subscription_;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr publisher_;
+    std::vector<pcl::PointIndices> clusters_;
 };
 
 #endif // DBSCAN_H
