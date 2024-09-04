@@ -1,6 +1,15 @@
-#ifndef DBSCAN_H
-#define DBSCAN_H
+#ifndef POINTCLOUD_CLUSTERING_CLUSTER_NODE_HPP_
+#define POINTCLOUD_CLUSTERING_CLUSTER_NODE_HPP_
 
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+#include <pcl_conversions/pcl_conversions.h>
+#include <pcl/common/common.h>
+#include <pcl/filters/extract_indices.h>
+#include <pcl/kdtree/kdtree.h>
+#include <pcl/segmentation/dbscan.h>
 #include <vector>
 #include <cmath>
 
