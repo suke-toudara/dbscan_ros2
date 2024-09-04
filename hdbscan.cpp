@@ -1,6 +1,21 @@
 # HDBSCAN
 #include "dbscan.h"
 
+
+#include "pointcloud_clustering/cluster_node.hpp"
+
+DBSCAN::PointCloudClusterNode() : Node("pointcloud_cluster_node")
+    {
+    m_minPoints = minPts;
+    m_epsilon = eps;
+    m_points = points;
+    m_pointSize = points.size();
+    declare_parameter("debug", false);
+    pointcloud_range_ = get_parameter("point_cloud_range").as_double_array();
+    subscription_ = this->create_subscription<sensor_msgs::msg::PointCloud2>("input_pointcloud", 10, std::bind(&PointCloudClusterNode::pointCloudCallback, this, std::placeholders::_1));
+    publisher_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("clustered_pointcloud", 10);
+}
+
 int DBSCAN::run()
 {
     int clusterID = 1;
@@ -91,10 +106,6 @@ inline double DBSCAN::calculateDistance(const Point& pointCore, const Point& poi
 }
 
 
-// #include "pointcloud_clustering/cluster_node.hpp"
-
-// PointCloudClusterNode::PointCloudClusterNode() : Node("pointcloud_cluster_node")
-// {
 //   subscription_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
 //     "input_pointcloud", 10, std::bind(&PointCloudClusterNode::pointCloudCallback, this, std::placeholders::_1));
 
