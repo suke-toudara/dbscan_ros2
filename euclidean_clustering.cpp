@@ -6,14 +6,11 @@
 #include <pcl/segmentation/extract_clusters.h>
 #include <pcl/search/kdtree.h>
 
-
 #include <pcl/ModelCoefficients.h>
-#include <pcl/point_types.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/filters/extract_indices.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/features/normal_3d.h>
-#include <pcl/search/kdtree.h>
 #include <pcl/sample_consensus/method_types.h>
 #include <pcl/sample_consensus/model_types.h>
 #include <pcl/segmentation/sac_segmentation.h>
@@ -21,63 +18,65 @@
 #include <iomanip> // for setw, setfill
 
 
-class EuclideanClusteringNode : public rclcpp::Node
+EuclideanClusteringNode::EuclideanClusteringNode() : Node("euclidean_clustering_node")
 {
-public:
-  EuclideanClusteringNode() : Node("euclidean_clustering_node")
+  // Subscriber and Publisher
+  sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
+      "/input/pointcloud", 10, std::bind(&EuclideanClusteringNode::pointCloudCallback, this, std::placeholders::_1));
+  pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/output/clustered_pointcloud", 10);
+}
+
+void EuclideanClusteringNode::pointCloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr input_msg)
+{
+  // Convert ROS2 PointCloud2 to PCL PointCloud
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+  pcl::fromROSMsg(*input_msg, *cloud);
+
+  /*
+  追加
+  */
+  // Create the filtering object: downsample the dataset using a leaf size of 1cm
+  pcl::VoxelGrid<pcl::PointXYZ> vg;
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered (new pcl::PointCloud<pcl::PointXYZ>);
+  vg.setInputCloud (cloud);
+  vg.setLeafSize (0.01f, 0.01f, 0.01f);
+  vg.filter (*cloud_filtered);
+  //ここまで
+  
+  // Create KD-tree for efficient nearest neighbor search
+  pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>);
+  tree->setInputCloud(cloud);
+
+  // Euclidean Cluster Extraction
+  std::vector<pcl::PointIndices> cluster_indices;
+  pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
+  ec.setClusterTolerance(0.05);  // 5cm tolerance for neighboring points
+  ec.setMinClusterSize(100);     // Minimum cluster size
+  ec.setMaxClusterSize(25000);   // Maximum cluster size
+  ec.setSearchMethod(tree);
+  ec.setInputCloud(cloud);
+  ec.extract(cluster_indices);
+
+  // Create a new PointCloud to hold the clustered points
+  pcl::PointCloud<pcl::PointXYZ>::Ptr clustered_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+
+  // Iterate through clusters and add them to the output PointCloud
+  for (const auto& indices : cluster_indices)
   {
-    // Subscriber and Publisher
-    sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-        "/input/pointcloud", 10, std::bind(&EuclideanClusteringNode::pointCloudCallback, this, std::placeholders::_1));
-    pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/output/clustered_pointcloud", 10);
-  }
-
-private:
-  void pointCloudCallback(const sensor_msgs::msg::PointCloud2::SharedPtr input_msg)
-  {
-    // Convert ROS2 PointCloud2 to PCL PointCloud
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
-    pcl::fromROSMsg(*input_msg, *cloud);
-
-    // Create KD-tree for efficient nearest neighbor search
-    pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>);
-    tree->setInputCloud(cloud);
-
-    // Euclidean Cluster Extraction
-    std::vector<pcl::PointIndices> cluster_indices;
-    pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
-    ec.setClusterTolerance(0.05);  // 5cm tolerance for neighboring points
-    ec.setMinClusterSize(100);     // Minimum cluster size
-    ec.setMaxClusterSize(25000);   // Maximum cluster size
-    ec.setSearchMethod(tree);
-    ec.setInputCloud(cloud);
-    ec.extract(cluster_indices);
-
-    // Create a new PointCloud to hold the clustered points
-    pcl::PointCloud<pcl::PointXYZ>::Ptr clustered_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-
-    // Iterate through clusters and add them to the output PointCloud
-    for (const auto& indices : cluster_indices)
+    for (const auto& idx : indices.indices)
     {
-      for (const auto& idx : indices.indices)
-      {
-        clustered_cloud->points.push_back(cloud->points[idx]);
-      }
+      clustered_cloud->points.push_back(cloud->points[idx]);
     }
-    
-    // Convert PCL PointCloud back to ROS2 PointCloud2 message
-    sensor_msgs::msg::PointCloud2 output_msg;
-    pcl::toROSMsg(*clustered_cloud, output_msg);
-    output_msg.header = input_msg->header;
-
-    // Publish the clustered point cloud
-    pub_->publish(output_msg);
   }
+  
+  // Convert PCL PointCloud back to ROS2 PointCloud2 message
+  sensor_msgs::msg::PointCloud2 output_msg;
+  pcl::toROSMsg(*clustered_cloud, output_msg);
+  output_msg.header = input_msg->header;
 
-  rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_;
-  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_;
-};
-
+  // Publish the clustered point cloud
+  pub_->publish(output_msg);
+}
 
 int 
 main ()
@@ -88,14 +87,7 @@ main ()
   reader.read ("table_scene_lms400.pcd", *cloud);
   std::cout << "PointCloud before filtering has: " << cloud->size () << " data points." << std::endl; //*
 
-  // Create the filtering object: downsample the dataset using a leaf size of 1cm
-  pcl::VoxelGrid<pcl::PointXYZ> vg;
-  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered (new pcl::PointCloud<pcl::PointXYZ>);
-  vg.setInputCloud (cloud);
-  vg.setLeafSize (0.01f, 0.01f, 0.01f);
-  vg.filter (*cloud_filtered);
-  std::cout << "PointCloud after filtering has: " << cloud_filtered->size ()  << " data points." << std::endl; //*
-
+  
   // Create the segmentation object for the planar model and set all the parameters
   pcl::SACSegmentation<pcl::PointXYZ> seg;
   pcl::PointIndices::Ptr inliers (new pcl::PointIndices);
