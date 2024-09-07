@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<launch>
+  <node_container pkg="rclcpp_components" exec="component_container" name="point_clustering_container" namespace="point_clustering" >
+    <composable_node pkg="point_clustering" plugin="euclidean_clustering::EuclideanClustering" name="euclidean_clustering" namespace="euclidean_clustering">
+      <param from="$(find-pkg-share point_clustering)/config/euclidean_config.yaml" />
+    </composable_node>
+  </node_container>
+</launch>

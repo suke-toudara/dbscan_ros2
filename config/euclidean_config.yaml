@@ -1,0 +1,8 @@
+/**:
+  ros__parameters:
+    sub_pc_topic :  "/camera/camera/depth/color/points" #"/sensing/velodyne_lower/velodyne_points"
+    sac_segmentation : true
+    voxel_size : 0.2
+    cluster_tolerance : 0.2 #m
+    min_cluster_size : 100
+    max_cluster_size : 1000
